@@ -54,6 +54,12 @@ data class CameraXState(
     val videoOptions: AndroidVideoOptions?,
 ) : EventChannel.StreamHandler, SensorOrientation {
 
+    /**
+     * What the camera is bound to. Left null, it is the Activity. The plugin sets a
+     * [BackgroundLifecycleOwner] so a recording can continue in the background.
+     */
+    var lifecycleOwner: LifecycleOwner? = null
+
     var imageAnalysisBuilder: ImageAnalysisBuilder? = null
     private var imageAnalysis: ImageAnalysis? = null
 
@@ -178,7 +184,7 @@ data class CameraXState(
                 singleCameraConfigs.add(
                     ConcurrentCamera.SingleCameraConfig(
                         cameraSelector,
-                        useCaseGroupBuilder.build(), activity as LifecycleOwner,
+                        useCaseGroupBuilder.build(), lifecycleOwner ?: (activity as LifecycleOwner),
                     )
                 )
             }
@@ -263,7 +269,7 @@ data class CameraXState(
 
             concurrentCamera = null
             previewCamera = cameraProvider.bindToLifecycle(
-                activity as LifecycleOwner,
+                lifecycleOwner ?: (activity as LifecycleOwner),
                 cameraSelector,
                 useCaseGroupBuilder.build(),
             )

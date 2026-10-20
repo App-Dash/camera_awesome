@@ -42,6 +42,9 @@ class CamerawesomePlugin {
   static const EventChannel _physicalButtonChannel =
       EventChannel('camerawesome/physical_button');
 
+  static const MethodChannel _backgroundChannel =
+      MethodChannel('camerawesome/background');
+
   static Stream<CameraOrientations>? _orientationStream;
 
   static Stream<CameraPhysicalButton>? _physicalButtonStream;
@@ -51,6 +54,25 @@ class CamerawesomePlugin {
   static Stream<Map<String, dynamic>>? _imagesStream;
 
   static CameraRunningState currentState = CameraRunningState.stopped;
+
+  /// Android only: keeps the camera, and any recording in progress, running when
+  /// the app goes to the background instead of closing the camera.
+  ///
+  /// By default CameraX is bound to the Activity, so the camera closes as soon
+  /// as the Activity stops, even if a foreground service is keeping the process
+  /// alive. Turn this on while recording and turn it off when you stop.
+  ///
+  /// The app must run a foreground service of type `camera` (and `microphone`
+  /// when recording audio) for as long as this is enabled: Android blocks
+  /// background camera access without one. It has no effect on iOS, which does
+  /// not allow background camera capture.
+  static Future<void> setKeepAliveInBackground(bool enabled) async {
+    if (!Platform.isAndroid) return;
+    await _backgroundChannel.invokeMethod<void>(
+      'setKeepAliveInBackground',
+      {'enabled': enabled},
+    );
+  }
 
   /// Set it to true to print dart logs from camerawesome
   static bool printLogs = false;

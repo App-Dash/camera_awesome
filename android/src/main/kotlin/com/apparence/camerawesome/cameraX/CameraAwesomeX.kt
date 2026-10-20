@@ -37,6 +37,8 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import androidx.lifecycle.LifecycleOwner
+import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
 import io.flutter.view.TextureRegistry
 import io.reactivex.rxjava3.disposables.Disposable
@@ -65,6 +67,8 @@ class CameraAwesomeX : CameraInterface, FlutterPlugin, ActivityAware {
     private val sensorOrientationListener: SensorOrientationListener = SensorOrientationListener()
 
     private lateinit var cameraState: CameraXState
+    private var backgroundOwner: BackgroundLifecycleOwner? = null
+    private var keepAliveInBackground = false
     private val cameraPermissions = CameraPermissions()
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var exifPreferences = ExifPreferences(false)
@@ -160,6 +164,7 @@ class CameraAwesomeX : CameraInterface, FlutterPlugin, ActivityAware {
             this.updateAspectRatio(aspectRatio)
             this.flashMode = FlashMode.valueOf(flashMode)
             this.enableAudioRecording = videoOptions?.enableAudio ?: true
+            this.lifecycleOwner = backgroundOwner
         }
         this.exifPreferences = exifPreferences
         orientationStreamListener =
@@ -806,10 +811,34 @@ class CameraAwesomeX : CameraInterface, FlutterPlugin, ActivityAware {
         EventChannel(binding.binaryMessenger, "camerawesome/permissions").setStreamHandler(
             cameraPermissions
         )
+        // Lets the app keep the camera, and a recording, running while it is in the background.
+        // Only enable it while a foreground service of type `camera` is running.
+        MethodChannel(binding.binaryMessenger, "camerawesome/background").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setKeepAliveInBackground" -> {
+                    keepAliveInBackground = call.argument<Boolean>("enabled") ?: false
+                    backgroundOwner?.keepAliveInBackground = keepAliveInBackground
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         physicalButtonHandler = PhysicalButtonsHandler()
         EventChannel(binding.binaryMessenger, "camerawesome/physical_button").setStreamHandler(
             physicalButtonHandler
         )
+    }
+
+    private fun attachBackgroundOwner(activity: Activity) {
+        releaseBackgroundOwner()
+        backgroundOwner = BackgroundLifecycleOwner(activity as LifecycleOwner).also {
+            it.keepAliveInBackground = keepAliveInBackground
+        }
+    }
+
+    private fun releaseBackgroundOwner() {
+        backgroundOwner?.release()
+        backgroundOwner = null
     }
 
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
@@ -818,20 +847,24 @@ class CameraAwesomeX : CameraInterface, FlutterPlugin, ActivityAware {
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
+        attachBackgroundOwner(binding.activity)
         binding.addRequestPermissionsResultListener(cameraPermissions)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(binding.activity)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
+        releaseBackgroundOwner()
         activity = null
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activity = binding.activity
+        attachBackgroundOwner(binding.activity)
         binding.addRequestPermissionsResultListener(cameraPermissions)
     }
 
     override fun onDetachedFromActivity() {
+        releaseBackgroundOwner()
         activity = null
         cancellationTokenSource.cancel()
         cameraPermissions.onCancel(null)
