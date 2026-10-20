@@ -42,6 +42,12 @@ class CamerawesomePlugin {
   static const EventChannel _physicalButtonChannel =
       EventChannel('camerawesome/physical_button');
 
+  static bool _keepAliveInBackground = false;
+
+  /// Whether [setKeepAliveInBackground] is on, so the builder doesn't stop an
+  /// active recording when the app is paused or inactive.
+  static bool get keepAliveInBackground => _keepAliveInBackground;
+
   static const MethodChannel _backgroundChannel =
       MethodChannel('camerawesome/background');
 
@@ -68,6 +74,7 @@ class CamerawesomePlugin {
   /// not allow background camera capture.
   static Future<void> setKeepAliveInBackground(bool enabled) async {
     if (!Platform.isAndroid) return;
+    _keepAliveInBackground = enabled;
     await _backgroundChannel.invokeMethod<void>(
       'setKeepAliveInBackground',
       {'enabled': enabled},

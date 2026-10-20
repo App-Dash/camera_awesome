@@ -375,6 +375,13 @@ class _CameraWidgetBuilder extends State<CameraAwesomeBuilder>
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
+        // The app asked for the recording to continue in the background
+        // (see CamerawesomePlugin.setKeepAliveInBackground).
+        if (CamerawesomePlugin.keepAliveInBackground) break;
+        _cameraContext //
+            .state
+            .when(onVideoRecordingMode: (mode) => mode.stopRecording());
+        break;
       case AppLifecycleState.detached:
         _cameraContext //
             .state
